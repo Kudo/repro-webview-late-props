@@ -1,0 +1,109 @@
+diff --git a/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt b/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
+index 4600a8dc5c448a2236d25e40172453f93ae92c45..999290a8ca6359eda9a31a3dab434cb4a8e25104 100644
+--- a/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
++++ b/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
+@@ -31,7 +31,7 @@ import java.util.Locale
+ 
+ val invalidCharRegex = "[\\\\/%\"]".toRegex()
+ 
+-class RNCWebViewManagerImpl {
++class RNCWebViewManagerImpl(private val newArch: Boolean = false) {
+     companion object {
+         const val NAME = "RNCWebView"
+     }
+@@ -43,6 +43,7 @@ class RNCWebViewManagerImpl {
+     private var mDownloadingMessage: String? = null
+     private var mLackPermissionToDownloadMessage: String? = null
+     private var mHasOnOpenWindowEvent = false
++    private var mPendingSource: ReadableMap? = null
+ 
+     private var mUserAgent: String? = null
+     private var mUserAgentWithApplicationName: String? = null
+@@ -268,6 +269,13 @@ class RNCWebViewManagerImpl {
+         viewWrapper.webView.setBasicAuthCredential(basicAuthCredential)
+     }
+ 
++    fun onAfterUpdateTransaction(viewWrapper: RNCWebViewWrapper) {
++        mPendingSource?.let { source ->
++            loadSource(viewWrapper, source)
++        }
++        mPendingSource = null
++    }
++
+     fun onDropViewInstance(viewWrapper: RNCWebViewWrapper) {
+         val webView = viewWrapper.webView
+         webView.themedReactContext.removeLifecycleEventListener(webView)
+@@ -373,7 +381,11 @@ class RNCWebViewManagerImpl {
+             ?: DEFAULT_LACK_PERMISSION_TO_DOWNLOAD_MESSAGE
+     }
+ 
+-    fun setSource(viewWrapper: RNCWebViewWrapper, source: ReadableMap?, newArch: Boolean = true) {
++    fun setSource(viewWrapper: RNCWebViewWrapper, source: ReadableMap?) {
++        mPendingSource = source
++    }
++
++    private fun loadSource(viewWrapper: RNCWebViewWrapper, source: ReadableMap?) {
+         val view = viewWrapper.webView
+         if (source != null) {
+             if (source.hasKey("html")) {
+diff --git a/android/src/newarch/com/reactnativecommunity/webview/RNCWebViewManager.java b/android/src/newarch/com/reactnativecommunity/webview/RNCWebViewManager.java
+index ecd0622c9f975e702f0cef0fdeb964a94053cfec..85bd765df3047b1b64934bc626efcdedc3b4de00 100644
+--- a/android/src/newarch/com/reactnativecommunity/webview/RNCWebViewManager.java
++++ b/android/src/newarch/com/reactnativecommunity/webview/RNCWebViewManager.java
+@@ -41,7 +41,7 @@ public class RNCWebViewManager extends ViewGroupManager<RNCWebViewWrapper>
+ 
+     public RNCWebViewManager() {
+         mDelegate = new RNCWebViewManagerDelegate<>(this);
+-        mRNCWebViewManagerImpl = new RNCWebViewManagerImpl();
++        mRNCWebViewManagerImpl = new RNCWebViewManagerImpl(true);
+     }
+ 
+     @Nullable
+@@ -310,7 +310,7 @@ public class RNCWebViewManager extends ViewGroupManager<RNCWebViewWrapper>
+     @Override
+     @ReactProp(name = "newSource")
+     public void setNewSource(RNCWebViewWrapper view, @Nullable ReadableMap value) {
+-        mRNCWebViewManagerImpl.setSource(view, value, true);
++        mRNCWebViewManagerImpl.setSource(view, value);
+     }
+ 
+     @Override
+@@ -539,6 +539,12 @@ public class RNCWebViewManager extends ViewGroupManager<RNCWebViewWrapper>
+         super.receiveCommand(reactWebView, commandId, args);
+     }
+ 
++    @Override
++    protected void onAfterUpdateTransaction(@NonNull RNCWebViewWrapper view) {
++        super.onAfterUpdateTransaction(view);
++        mRNCWebViewManagerImpl.onAfterUpdateTransaction(view);
++    }
++
+     @Override
+     public void onDropViewInstance(@NonNull RNCWebViewWrapper view) {
+         mRNCWebViewManagerImpl.onDropViewInstance(view);
+diff --git a/android/src/oldarch/com/reactnativecommunity/webview/RNCWebViewManager.java b/android/src/oldarch/com/reactnativecommunity/webview/RNCWebViewManager.java
+index 709117a91e44c2e32a263c638b0c092185d76e94..9e2afc5047479b107f188c172ebcd7592fb22516 100644
+--- a/android/src/oldarch/com/reactnativecommunity/webview/RNCWebViewManager.java
++++ b/android/src/oldarch/com/reactnativecommunity/webview/RNCWebViewManager.java
+@@ -250,7 +250,7 @@ public class RNCWebViewManager extends ViewGroupManager<RNCWebViewWrapper> {
+ 
+     @ReactProp(name = "source")
+     public void setSource(RNCWebViewWrapper view, @Nullable ReadableMap value) {
+-        mRNCWebViewManagerImpl.setSource(view, value, false);
++        mRNCWebViewManagerImpl.setSource(view, value);
+     }
+ 
+     @ReactProp(name = "textZoom")
+@@ -314,6 +314,12 @@ public class RNCWebViewManager extends ViewGroupManager<RNCWebViewWrapper> {
+         super.receiveCommand(reactWebView, commandId, args);
+     }
+ 
++    @Override
++    protected void onAfterUpdateTransaction(@NonNull RNCWebViewWrapper view) {
++        super.onAfterUpdateTransaction(view);
++        mRNCWebViewManagerImpl.onAfterUpdateTransaction(view);
++    }
++
+     @Override
+     public void onDropViewInstance(@NonNull RNCWebViewWrapper view) {
+         mRNCWebViewManagerImpl.onDropViewInstance(view);
